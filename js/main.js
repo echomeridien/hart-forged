@@ -528,9 +528,12 @@ function saveImage() {
   out.height = src.height;
   const g = out.getContext('2d');
   const grd = g.createRadialGradient(out.width / 2, out.height * 0.44, 0, out.width / 2, out.height * 0.44, Math.max(out.width, out.height) * 0.7);
-  grd.addColorStop(0, '#f4f5f7');
-  grd.addColorStop(0.58, '#dde0e5');
-  grd.addColorStop(1, '#bfc4cc');
+  // Match the on-screen stage, which follows the light / dark theme
+  const css = getComputedStyle(document.documentElement);
+  const stage = (n) => css.getPropertyValue(`--stage-${n}`).trim();
+  grd.addColorStop(0, stage(1));
+  grd.addColorStop(0.58, stage(2));
+  grd.addColorStop(1, stage(3));
   g.fillStyle = grd;
   g.fillRect(0, 0, out.width, out.height);
   g.drawImage(src, 0, 0);
