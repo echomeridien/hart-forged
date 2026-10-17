@@ -253,48 +253,6 @@ export function spokeLayout(design, ax, N = 40) {
         }));
       }
     }
-  } else if (design === 'five' || design === 'six' || design === 'multi15') {
-    // Straight spokes: [count, width at hub, width at rim, depth at hub, depth at rim]
-    const [n, w0, w1, d0, d1] = { five: [5, 36, 26, 34, 22], six: [6, 30, 22, 32, 20], multi15: [15, 13, 9, 26, 14] }[design];
-    for (let k = 0; k < n; k++) {
-      const phi = deg(90 + (k * 360) / n);
-      beams.push(beam(N, (t) => ({ r: lerp(r0, r1, t), theta: phi, w: lerp(w0, w1, t), d: lerp(d0, d1, t) })));
-    }
-  } else if (design === 'twin7') {
-    for (let k = 0; k < 7; k++) {
-      const phi = deg(90 + (k * 360) / 7);
-      for (const side of [-1, 1]) {
-        beams.push(beam(N, (t) => {
-          const r = lerp(r0, r1, t);
-          const w = lerp(12, 9, t);
-          const gap = lerp(2, 16, t);
-          return { r, theta: phi + side * ((gap + w) / 2) / r, w, d: lerp(28, 15, t) };
-        }));
-      }
-    }
-  } else if (design === 'blade' || design === 'turbine') {
-    // Directional spokes that sweep round as they reach the rim
-    const [n, sweep, w0, w1, d0, d1] = { blade: [10, 26, 20, 12, 30, 16], turbine: [20, 38, 11, 8, 26, 14] }[design];
-    for (let k = 0; k < n; k++) {
-      const phi = deg(90 + (k * 360) / n);
-      beams.push(beam(N, (t) => ({ r: lerp(r0, r1, t), theta: phi + deg(sweep) * t * t, w: lerp(w0, w1, t), d: lerp(d0, d1, t) })));
-    }
-  } else if (design === 'heritage') {
-    // Five stems, each forking into three
-    const rs = lerp(r0, r1, 0.38);
-    for (let k = 0; k < 5; k++) {
-      const phi = deg(90 + k * 72);
-      beams.push(beam(N, (t) => {
-        const r = lerp(r0, rs + 12, t);
-        return { r, theta: phi, w: lerp(30, 24, t), d: lerp(32, 24, t) };
-      }));
-      for (const side of [-1, 0, 1]) {
-        beams.push(beam(N, (t) => {
-          const r = lerp(rs - 6, r1, t);
-          return { r, theta: phi + side * deg(13) * smooth(t), w: lerp(15, 10, t), d: lerp(24, 15, t) };
-        }));
-      }
-    }
   } else {
     throw new Error(`Unknown design: ${design}`);
   }

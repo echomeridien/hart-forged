@@ -4,13 +4,12 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 import {
-  DESIGNS, STYLES, CONSTRUCTIONS, PROFILES, FACE_FINISHES, LIP_FINISHES, HARDWARE_FINISHES,
-  BARREL_FINISHES, BOLT_PATTERNS, DIAMETERS, WIDTHS, OFFSET_RANGE, HARDWARE_COUNT, DEFAULT_STATE,
+  DESIGNS, CONSTRUCTIONS, PROFILES, FACE_FINISHES, LIP_FINISHES, HARDWARE_FINISHES,
+  BARREL_FINISH, BOLT_PATTERNS, DIAMETERS, WIDTHS, OFFSET_RANGE, HARDWARE_COUNT, DEFAULT_STATE,
 } from './config.js';
 import { computeAxle, compareToReference, mmToIn } from './fitment.js';
 import { spokeLayout } from './geom.js';
 import { buildWheel, disposeWheel, makeCapTexture } from './wheel.js';
-import { initCarPhoto } from './carphoto.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -139,17 +138,10 @@ function applyFinish(mat, f, customHex) {
 }
 
 function applyMaterials() {
-  const face = byId(FACE_FINISHES, state.face);
-  const whole = state.finishMode === 'whole';
-  applyFinish(mats.face, face, state.faceCustom);
-  if (whole) {
-    applyFinish(mats.lip, face, state.faceCustom);
-    applyFinish(mats.barrel, face, state.faceCustom);
-  } else {
-    applyFinish(mats.lip, byId(LIP_FINISHES, state.lip), state.lipCustom);
-    applyFinish(mats.barrel, byId(BARREL_FINISHES, state.barrel), state.barrelCustom);
-  }
+  applyFinish(mats.face, byId(FACE_FINISHES, state.face), state.faceCustom);
+  applyFinish(mats.lip, byId(LIP_FINISHES, state.lip), state.lipCustom);
   applyFinish(mats.hardware, byId(HARDWARE_FINISHES, state.hardware));
+  applyFinish(mats.barrel, BARREL_FINISH);
   const planes = sectionOn ? [cutPlane] : [];
   for (const m of [...Object.values(mats), datumMat]) {
     m.clippingPlanes = planes;
@@ -273,24 +265,7 @@ function pressed(container, attr, value) {
 }
 
 function buildPanel() {
-  // Styles: each one is a starting point, and filters the design grid
-  $('styles').innerHTML = STYLES.map((st) =>
-    `<button type="button" class="style-card" data-id="${st.id}">${svgFor(st.preset.design)}<span class="style-name">${st.name}</span><span class="style-cue">${st.cue}</span></button>`).join('');
-  $('styles').addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    const st = byId(STYLES, b.dataset.id);
-    Object.assign(state, st.preset, { style: st.id, designFilter: st.id });
-    changed(true);
-    toast(`Started from ${st.name}. Change anything you like.`);
-  });
-
   // Designs
-  $('designFilter').innerHTML = [{ id: 'all', name: 'All designs' }, ...STYLES]
-    .map((st) => `<button type="button" class="chip chip-sm" data-filter="${st.id}">${st.name}</button>`).join('');
-  $('designFilter').addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    state.designFilter = b.dataset.filter; changed(false);
-  });
   $('designs').innerHTML = DESIGNS.map((d) =>
     `<button type="button" class="design" data-id="${d.id}">${svgFor(d.id)}<span>${d.name}</span></button>`).join('');
   $('designs').addEventListener('click', (e) => {
@@ -304,7 +279,6 @@ function buildPanel() {
     const b = e.target.closest('button'); if (!b) return;
     state.construction = b.dataset.id; changed(true);
   });
-  $('seeParts').addEventListener('click', () => animateExplode(explode > 0.5 ? 0 : 1));
   $('profiles').innerHTML = PROFILES.map((p) => `<button type="button" data-id="${p.id}">${p.name}</button>`).join('');
   $('profiles').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
@@ -312,10 +286,6 @@ function buildPanel() {
   });
 
   // Finishes
-  $('finishMode').addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    state.finishMode = b.dataset.mode; changed(false);
-  });
   const swatches = (list, el, keyName, customKey) => {
     el.innerHTML = list.map((f) => {
       const bg = f.custom ? 'conic-gradient(#d33,#dd3,#3d3,#3dd,#33d,#d3d,#d33)' : f.swatch;
@@ -330,11 +300,9 @@ function buildPanel() {
   };
   swatches(FACE_FINISHES, $('faceFinishes'), 'face', 'faceCustom');
   swatches(LIP_FINISHES, $('lipFinishes'), 'lip', 'lipCustom');
-  swatches(BARREL_FINISHES, $('barrelFinishes'), 'barrel', 'barrelCustom');
   swatches(HARDWARE_FINISHES, $('hardwareFinishes'), 'hardware');
   $('faceCustom').addEventListener('input', (e) => { state.faceCustom = e.target.value; changed(false); });
   $('lipCustom').addEventListener('input', (e) => { state.lipCustom = e.target.value; changed(false); });
-  $('barrelCustom').addEventListener('input', (e) => { state.barrelCustom = e.target.value; changed(false); });
   $('lipStyles').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     state.lipStyle = b.dataset.lipstyle; changed(true);
@@ -392,7 +360,7 @@ function buildPanel() {
   $('axleSwitch').addEventListener('click', pickAxle);
 
   // Stage controls
-  $('explode').addEventListener('input', (e) => { explodeTween = null; explode = Number(e.target.value); applyExplode(); });
+  $('explode').addEventListener('input', (e) => { explode = Number(e.target.value); applyExplode(); });
   $('views').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     goTo(b.dataset.view);
@@ -413,7 +381,6 @@ function buildPanel() {
   $('copySpec').addEventListener('click', () => copy(specText(), 'Specification copied'));
   $('copyLink').addEventListener('click', () => { saveState(); copy(location.href, 'Link copied'); });
   $('saveImage').addEventListener('click', saveImage);
-  for (const id of ['openCar', 'openCar2']) $(id).addEventListener('click', () => carPhoto.open());
 }
 
 let sectionOn = false;
@@ -436,11 +403,6 @@ function renderPanel() {
   const design = byId(DESIGNS, state.design);
   const construction = byId(CONSTRUCTIONS, state.construction);
 
-  pressed($('styles'), 'id', state.style);
-  pressed($('designFilter'), 'filter', state.designFilter);
-  for (const b of $('designs').querySelectorAll('button')) {
-    b.hidden = state.designFilter !== 'all' && !byId(DESIGNS, b.dataset.id).styles.includes(state.designFilter);
-  }
   pressed($('designs'), 'id', state.design);
   $('designBlurb').textContent = design.blurb;
   pressed($('constructions'), 'id', state.construction);
@@ -450,18 +412,10 @@ function renderPanel() {
   pressed($('lipFinishes'), 'id', state.lip);
   pressed($('hardwareFinishes'), 'id', state.hardware);
   pressed($('lipStyles'), 'lipstyle', state.lipStyle);
-  pressed($('barrelFinishes'), 'id', state.barrel);
-  pressed($('finishMode'), 'mode', state.finishMode);
-  const whole = state.finishMode === 'whole';
-  $('partFinishes').hidden = whole;
-  $('faceTitle').textContent = whole ? 'Whole wheel' : 'Face';
   $('faceCustom').value = state.faceCustom;
   $('lipCustom').value = state.lipCustom;
-  $('barrelCustom').value = state.barrelCustom;
   $('faceCustomWrap').hidden = !byId(FACE_FINISHES, state.face).custom;
   $('lipCustomWrap').hidden = !byId(LIP_FINISHES, state.lip).custom;
-  $('barrelCustomWrap').hidden = !byId(BARREL_FINISHES, state.barrel).custom;
-  $('buildCaption').textContent = construction.parts;
   const mono = state.construction === '1pc';
   for (const b of $('hardwareFinishes').querySelectorAll('button')) b.disabled = mono;
   $('hardwareHint').hidden = !mono;
@@ -522,7 +476,6 @@ function specText() {
   const face = byId(FACE_FINISHES, state.face);
   const lip = byId(LIP_FINISHES, state.lip);
   const hw = byId(HARDWARE_FINISHES, state.hardware);
-  const barrel = byId(BARREL_FINISHES, state.barrel);
   const custom = (f, hex) => (f.custom ? `Custom colour ${hex.toUpperCase()}` : f.name);
   const line = (label, a) => {
     const s = state[a];
@@ -535,17 +488,9 @@ function specText() {
     `Design: ${design.name}`,
     `Construction: ${construction.name}`,
     `Face profile: ${byId(PROFILES, state.profile).name}`,
+    `Face finish: ${custom(face, state.faceCustom)}`,
+    `Lip: ${custom(lip, state.lipCustom)}, ${state.lipStyle === 'stepped' ? 'stepped' : 'standard'}`,
   ];
-  const lipStyle = state.lipStyle === 'stepped' ? 'stepped' : 'standard';
-  if (state.finishMode === 'whole') {
-    lines.push(`Finish: ${custom(face, state.faceCustom)}, whole wheel`, `Lip style: ${lipStyle}`);
-  } else {
-    lines.push(
-      `Face finish: ${custom(face, state.faceCustom)}`,
-      `Lip: ${custom(lip, state.lipCustom)}, ${lipStyle}`,
-      `Barrel: ${custom(barrel, state.barrelCustom)}`,
-    );
-  }
   if (state.construction !== '1pc') lines.push(`Hardware: ${hw.name}, ${HARDWARE_COUNT[state.construction]} bolts`);
   if (state.staggered) {
     lines.push(line('Front', 'front'), line('Rear', 'rear'));
@@ -599,70 +544,6 @@ function saveImage() {
   toast('Image saved');
 }
 
-// Animate the construction view open or closed (the "See the parts" button)
-let explodeTween = null;
-function animateExplode(to) {
-  if (reduceMotion) { explode = to; syncExplode(); return; }
-  explodeTween = { from: explode, to, start: performance.now(), dur: 900 };
-}
-
-function syncExplode() {
-  $('explode').value = String(explode);
-  $('seeParts').textContent = explode > 0.5 ? 'Put it back together' : 'See the parts';
-  applyExplode();
-}
-
-// Renders the assembled wheel for one axle, seen face-on but turned by yaw
-// (radians), onto a transparent square canvas px wide. The outer edge of the
-// rim fills the canvas. Used to draw the wheel onto a photo of the car.
-function renderWheelImage(axle, yaw, px) {
-  const ax = axleFor(axle);
-  const temp = axle === shownAxle() ? null : buildWheel(state, ax, mats, boltPattern());
-  const r = ax.R + ax.dims.F;
-  const cam = new THREE.OrthographicCamera(-r, r, r, -r, 1, 10000);
-  // Centre on the outer lip, so it lines up with the ring on the photo when turned
-  const front = new THREE.Vector3(0, 0, ax.h + ax.dims.fT);
-  cam.position.set(Math.sin(yaw) * 3000, 0, front.z + Math.cos(yaw) * 3000);
-  cam.lookAt(front);
-
-  // Show only the assembled wheel, without cut-away, datums or floor shadow
-  const wasSection = sectionOn;
-  const size = renderer.getSize(new THREE.Vector2());
-  const ratio = renderer.getPixelRatio();
-  sectionOn = false;
-  applyMaterials();
-  shadow.visible = false;
-  datum.visible = false;
-  if (temp) { wheel.root.visible = false; scene.add(temp.root); }
-  for (const g of Object.values(wheel.parts)) g.position.z = 0;
-
-  renderer.setPixelRatio(1);
-  renderer.setSize(px, px, false);
-  renderer.render(scene, cam);
-  const out = document.createElement('canvas');
-  out.width = out.height = px;
-  out.getContext('2d').drawImage(renderer.domElement, 0, 0);
-
-  renderer.setPixelRatio(ratio);
-  renderer.setSize(size.x, size.y, false);
-  if (temp) { disposeWheel(temp); wheel.root.visible = true; }
-  shadow.visible = true;
-  sectionOn = wasSection;
-  setDatumVisible(sectionOn);
-  applyMaterials();
-  applyExplode();
-  return out;
-}
-
-const carPhoto = initCarPhoto({
-  renderWheelImage,
-  wheels: () => (state.staggered
-    ? [{ axle: 'front', label: 'Front' }, { axle: 'rear', label: 'Rear' }]
-    : [{ axle: 'front', label: 'Wheel' }, { axle: 'front', label: 'Wheel' }]),
-  version: () => JSON.stringify(state),
-  toast,
-});
-
 // ---------------------------------------------------------------- change handling
 
 function changed(geometry) {
@@ -689,12 +570,6 @@ function frame(now) {
     const t = Math.min(1, (now - tween.start) / tween.dur);
     camera.position.lerpVectors(tween.from, tween.to, ease(t));
     if (t >= 1) tween = null;
-  }
-  if (explodeTween) {
-    const t = Math.min(1, (now - explodeTween.start) / explodeTween.dur);
-    explode = explodeTween.from + (explodeTween.to - explodeTween.from) * t;
-    if (t >= 1) explodeTween = null;
-    syncExplode();
   }
   controls.update();
   renderer.render(scene, camera);

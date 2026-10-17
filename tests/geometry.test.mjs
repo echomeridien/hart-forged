@@ -5,7 +5,6 @@ import {
   barrelProfile, ringProfile, hubProfile, clipProfileZ, lathe, sweptBeam,
   spokeLayout, beamSamples, signedArea, ensureCCW, dedupe,
 } from '../js/geom.js';
-import { DESIGNS } from '../js/config.js';
 
 let checks = 0;
 const ok = (cond, msg) => { checks++; assert.ok(cond, msg); };
@@ -50,7 +49,7 @@ function windingAgrees({ positions, normals, indices }) {
 }
 
 // 2. Sweep every design / construction / size combination
-const designs = DESIGNS.map((d) => d.id);
+const designs = ['split10', 'yspoke', 'mesh'];
 const constructions = ['1pc', '2pc', '3pc'];
 const depths = [8, 30, 55];
 let combos = 0;

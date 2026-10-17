@@ -28,10 +28,7 @@
         <p class="tagline">Bespoke wheel configurator</p>
       </header>
 
-      <div class="stage-tools">
-        <button type="button" class="chip chip-strong" id="openCar">Try on your car</button>
-        <button type="button" class="chip" id="themeToggle" aria-pressed="false">Dark mode</button>
-      </div>
+      <button type="button" class="chip theme-toggle" id="themeToggle" aria-pressed="false">Dark mode</button>
 
       <div id="viewport" class="viewport" aria-hidden="true"></div>
       <p class="loading" id="loading">Preparing the studio</p>
@@ -44,14 +41,11 @@
           <button type="button" data-axle="rear">Rear</button>
         </div>
 
-        <div class="explode">
-          <label class="explode-title" for="explode">See how it's built <span id="buildCaption"></span></label>
-          <div class="explode-track">
-            <span>Assembled</span>
-            <input type="range" id="explode" min="0" max="1" step="0.01" value="0" aria-describedby="buildCaption">
-            <span>Parts separated</span>
-          </div>
-        </div>
+        <label class="explode">
+          <span>Assembled</span>
+          <input type="range" id="explode" min="0" max="1" step="0.01" value="0" aria-label="Pull the wheel apart">
+          <span>Exploded</span>
+        </label>
 
         <div class="seg seg-sm" role="group" aria-label="Camera view" id="views">
           <button type="button" data-view="face">Face</button>
@@ -68,14 +62,7 @@
 
     <aside class="panel" aria-label="Wheel options">
       <section class="block">
-        <h2>Start with a style</h2>
-        <p class="hint hint-top">Pick the look you're after for a ready-made starting point, then change anything you like.</p>
-        <div class="styles" id="styles"></div>
-      </section>
-
-      <section class="block">
         <h2>Design</h2>
-        <div class="filters" role="group" aria-label="Show designs for" id="designFilter"></div>
         <div class="designs" id="designs"></div>
         <p class="hint" id="designBlurb"></p>
       </section>
@@ -84,7 +71,6 @@
         <h2>Construction</h2>
         <div class="seg" role="group" aria-label="Construction" id="constructions"></div>
         <p class="hint" id="constructionBlurb"></p>
-        <button type="button" class="btn btn-small see-parts" id="seeParts">See the parts</button>
         <h3>Face profile</h3>
         <div class="seg" role="group" aria-label="Face profile" id="profiles"></div>
         <p class="hint">At a fixed offset, a deeper concave leaves a shallower lip.</p>
@@ -92,18 +78,12 @@
 
       <section class="block">
         <h2>Finishes</h2>
-        <div class="seg" role="group" aria-label="How to finish the wheel" id="finishMode">
-          <button type="button" data-mode="whole">Whole wheel, one finish</button>
-          <button type="button" data-mode="parts">Finish each part</button>
-        </div>
-
-        <h3 id="faceTitle">Face</h3>
+        <h3>Face</h3>
         <div class="swatches" id="faceFinishes"></div>
         <label class="custom-colour" id="faceCustomWrap" hidden>
           <input type="color" id="faceCustom"> <span>Choose the face colour</span>
         </label>
 
-        <div id="partFinishes">
         <h3>Lip</h3>
         <div class="swatches" id="lipFinishes"></div>
         <label class="custom-colour" id="lipCustomWrap" hidden>
@@ -112,13 +92,6 @@
         <div class="seg seg-sm lip-style" role="group" aria-label="Lip style" id="lipStyles">
           <button type="button" data-lipstyle="standard">Standard lip</button>
           <button type="button" data-lipstyle="stepped">Stepped lip</button>
-        </div>
-
-        <h3>Barrel</h3>
-        <div class="swatches" id="barrelFinishes"></div>
-        <label class="custom-colour" id="barrelCustomWrap" hidden>
-          <input type="color" id="barrelCustom"> <span>Choose the barrel colour</span>
-        </label>
         </div>
 
         <h3>Hardware</h3>
@@ -170,42 +143,10 @@
           <button type="button" class="btn btn-primary" id="copySpec">Copy specification</button>
           <button type="button" class="btn" id="copyLink">Copy link</button>
           <button type="button" class="btn" id="saveImage">Save image</button>
-          <button type="button" class="btn" id="openCar2">Try on your car</button>
         </div>
       </section>
     </aside>
   </div>
-
-  <dialog class="car-dialog" id="carDialog" aria-labelledby="carTitle">
-    <header class="car-head">
-      <h2 id="carTitle">On your car</h2>
-      <button type="button" class="btn btn-small" id="carClose">Close</button>
-    </header>
-
-    <div class="car-body">
-      <label class="car-drop" id="carDrop">
-        <input type="file" id="carFile" accept="image/*" hidden>
-        <strong>Choose a photo of your car</strong>
-        <span>A side-on photo works best, with both wheels in view. You can also drop it here.</span>
-        <span class="car-private">Your photo stays on this device. It isn't uploaded anywhere.</span>
-      </label>
-
-      <div class="car-stage" id="carStage" hidden>
-        <canvas id="carCanvas"></canvas>
-        <div class="car-rings" id="carRings"></div>
-      </div>
-    </div>
-
-    <footer class="car-foot" id="carFoot" hidden>
-      <p class="hint" id="carHint">Drag each ring over a wheel, lining it up with the edge of the rim. Use the corner handle to resize and the side handle to match the angle.</p>
-      <div class="actions">
-        <button type="button" class="btn" id="carSwap">Swap front and rear</button>
-        <button type="button" class="btn" id="carOriginal" aria-pressed="false">Show original</button>
-        <button type="button" class="btn" id="carChange">Change photo</button>
-        <button type="button" class="btn btn-primary" id="carSave">Save image</button>
-      </div>
-    </footer>
-  </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
