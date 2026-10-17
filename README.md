@@ -27,8 +27,14 @@ Then open http://localhost:8000. (Opening `index.html` directly won't work, beca
 | `js/carphoto.js` | "Try on your car": photo, wheel rings and the composite image |
 | `js/theme.js` | Light / dark theme toggle |
 | `tests/geometry.test.mjs` | Checks the maths and geometry across 15,000+ wheel sizes |
+| `tests/assets.test.mjs` | Checks the cache-busting hashes in `index.html` are current |
+| `tools/stamp-assets.mjs` | Updates those hashes |
 
-Run the tests with `node tests/geometry.test.mjs`.
+Run the tests with `node tests/geometry.test.mjs` and `node tests/assets.test.mjs`.
+
+## After changing any CSS or JS
+
+Run `node tools/stamp-assets.mjs`. It puts a hash of each file's contents into the links in `index.html` (`styles.css?v=...`, and the import map for the JS modules), so visitors' browsers load the new files instead of mixing them with old cached copies. `tests/assets.test.mjs` fails if this step was missed.
 
 ## Accuracy
 
