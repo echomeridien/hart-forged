@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hart Forged Configurator</title>
+  <meta name="description" content="Configure a bespoke Hart Forged wheel: design, construction, finishes and fitment, in 3D.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <section class="stage" aria-label="3D wheel preview">
+      <header class="brand">
+        <p class="wordmark">HART FORGED</p>
+        <p class="tagline">Bespoke wheel configurator</p>
+      </header>
+
+      <div id="viewport" class="viewport" aria-hidden="true"></div>
+      <p class="loading" id="loading">Preparing the studio</p>
+
+      <p class="readout" id="readout"></p>
+
+      <div class="stage-bar">
+        <div class="seg seg-sm" role="group" aria-label="Wheel shown" id="axleSwitch">
+          <button type="button" data-axle="front">Front</button>
+          <button type="button" data-axle="rear">Rear</button>
+        </div>
+
+        <label class="explode">
+          <span>Assembled</span>
+          <input type="range" id="explode" min="0" max="1" step="0.01" value="0" aria-label="Pull the wheel apart">
+          <span>Exploded</span>
+        </label>
+
+        <div class="seg seg-sm" role="group" aria-label="Camera view" id="views">
+          <button type="button" data-view="face">Face</button>
+          <button type="button" data-view="three">Three-quarter</button>
+          <button type="button" data-view="profile">Profile</button>
+        </div>
+
+        <div class="toggles">
+          <button type="button" class="chip" id="section" aria-pressed="false">Cut-away</button>
+          <button type="button" class="chip" id="spin" aria-pressed="false">Turntable</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel" aria-label="Wheel options">
+      <section class="block">
+        <h2>Design</h2>
+        <div class="designs" id="designs"></div>
+        <p class="hint" id="designBlurb"></p>
+      </section>
+
+      <section class="block">
+        <h2>Construction</h2>
+        <div class="seg" role="group" aria-label="Construction" id="constructions"></div>
+        <p class="hint" id="constructionBlurb"></p>
+        <h3>Face profile</h3>
+        <div class="seg" role="group" aria-label="Face profile" id="profiles"></div>
+        <p class="hint">At a fixed offset, a deeper concave leaves a shallower lip.</p>
+      </section>
+
+      <section class="block">
+        <h2>Finishes</h2>
+        <h3>Face</h3>
+        <div class="swatches" id="faceFinishes"></div>
+        <label class="custom-colour" id="faceCustomWrap" hidden>
+          <input type="color" id="faceCustom"> <span>Choose the face colour</span>
+        </label>
+
+        <h3>Lip</h3>
+        <div class="swatches" id="lipFinishes"></div>
+        <label class="custom-colour" id="lipCustomWrap" hidden>
+          <input type="color" id="lipCustom"> <span>Choose the lip colour</span>
+        </label>
+        <div class="seg seg-sm lip-style" role="group" aria-label="Lip style" id="lipStyles">
+          <button type="button" data-lipstyle="standard">Standard lip</button>
+          <button type="button" data-lipstyle="stepped">Stepped lip</button>
+        </div>
+
+        <h3>Hardware</h3>
+        <div class="swatches" id="hardwareFinishes"></div>
+        <p class="hint" id="hardwareHint" hidden>Monoblock wheels have no assembly hardware.</p>
+      </section>
+
+      <section class="block">
+        <h2>Fitment</h2>
+        <div class="seg" role="group" aria-label="Front and rear sizes" id="fitMode">
+          <button type="button" data-fit="square">Same front and rear</button>
+          <button type="button" data-fit="staggered">Staggered</button>
+        </div>
+
+        <div class="axle-tabs seg seg-sm" role="group" aria-label="Axle to edit" id="axleTabs">
+          <button type="button" data-axle="front">Front axle</button>
+          <button type="button" data-axle="rear">Rear axle</button>
+        </div>
+
+        <div class="fields">
+          <label>Diameter <select id="fDiameter"></select></label>
+          <label>Width <select id="fWidth"></select></label>
+          <label>Offset (ET) <input type="number" id="fOffset" step="1" inputmode="numeric"></label>
+        </div>
+
+        <h3>Compared with your current wheel</h3>
+        <div class="fields">
+          <label>Diameter <select id="rDiameter"></select></label>
+          <label>Width <select id="rWidth"></select></label>
+          <label>Offset (ET) <input type="number" id="rOffset" step="1" inputmode="numeric"></label>
+        </div>
+
+        <h3>Hub</h3>
+        <div class="fields fields-2">
+          <label>Bolt pattern <select id="bolt"></select></label>
+          <label>Centre bore (mm) <input type="number" id="bore" step="0.1" min="50" max="130"></label>
+        </div>
+
+        <h3 id="resultsTitle">Results</h3>
+        <dl class="results" id="results"></dl>
+        <ul class="warnings" id="warnings"></ul>
+        <p class="note">Figures are indicative, from a simplified model of the wheel. Brake clearance needs your vehicle's caliper data, so Racing Hart Concepts confirms final fitment before any order is made.</p>
+      </section>
+
+      <section class="block">
+        <h2>Your specification</h2>
+        <pre class="spec" id="specText"></pre>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="copySpec">Copy specification</button>
+          <button type="button" class="btn" id="copyLink">Copy link</button>
+          <button type="button" class="btn" id="saveImage">Save image</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
