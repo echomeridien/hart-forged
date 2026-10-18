@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { computeAxle, compareToReference, IN } from '../js/fitment.js';
 import {
   barrelProfile, ringProfile, hubProfile, clipProfileZ, lathe, sweptBeam,
-  spokeLayout, beamSamples, signedArea, ensureCCW, dedupe,
+  spokeLayout, beamSamples, signedArea, ensureCCW, dedupe, tyreProfile,
 } from '../js/geom.js';
 import { DESIGNS } from '../js/config.js';
 
@@ -26,6 +26,15 @@ function isSimple(poly) {
     }
   }
   return true;
+}
+
+function pointInPolygon([x, y], poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 // Lathe winding must agree with the supplied normals (front faces face outward).
@@ -79,6 +88,12 @@ for (const construction of constructions) {
             ok(isSimple(ringProfile(ax, construction)), 'ring profile simple');
             ok(isSimple(hubProfile(ax)), 'hub profile simple');
 
+            // The tyre is a clean shape that never cuts into the barrel
+            const tyre = tyreProfile(ax);
+            ok(isSimple(tyre), `tyre profile self-intersects: ${JSON.stringify({ diameter, width, offset })}`);
+            for (const q of tyre) ok(!pointInPolygon(q, barrel), `tyre point inside barrel: ${JSON.stringify({ q, diameter, width, offset, construction, stepped })}`);
+            for (const q of barrel) ok(!pointInPolygon(q, tyre), `barrel point inside tyre: ${JSON.stringify({ q, diameter, width, offset, construction, stepped })}`);
+
             // Spokes stay inside the barrel and stay finite (check one size in three to keep this quick)
             if (offset % 30 === 0) {
               for (const design of designs) {
@@ -90,6 +105,11 @@ for (const construction of constructions) {
                   }
                   const g = sweptBeam(s);
                   finite(g.positions, 'beam vertex finite');
+                  finite(g.normals, 'beam normal finite');
+                  if (diameter === 20 && width === 9.5) {
+                    const w = windingAgrees(g);
+                    ok(w.disagree === 0, `${design} spoke winding (disagree ${w.disagree})`);
+                  }
                 }
               }
             }

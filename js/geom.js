@@ -90,8 +90,10 @@ export function lathe(profile, segments = 128) {
   return { positions, normals, indices };
 }
 
-// ---------- Swept beam: a spoke with a tapered, chamfered cross-section ----------
+// ---------- Swept beam: a spoke with a tapered cross-section and rounded edges ----------
 // samples: [{ p: [x, y, z] (centre of the front face), w: width, d: depth }]
+// Returns positions, normals and indices. The flat faces stay flat and only the
+// rounded edges shade smoothly, so each edge catches a thin line of light.
 
 function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
 function add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
@@ -104,9 +106,41 @@ function norm(a) {
   return [a[0] / l, a[1] / l, a[2] / l];
 }
 
+const EDGE_STEPS = 3; // segments in each rounded edge
+
+// Cross-section in local 2D coordinates (x across the spoke, y out of the face):
+// a trapezoid with each corner replaced by an arc. Returns [{ x, y, nx, ny }].
+export function roundedSection(w, d, frontRatio) {
+  const fw = (w * frontRatio) / 2, bw = w / 2;
+  const corners = [[fw, 0], [-fw, 0], [-bw, -d], [bw, -d]];
+  const front = Math.min(fw, d) * 0.45, back = front * 0.6;
+  const out = [];
+  corners.forEach((P, i) => {
+    const A = corners[(i + 3) % 4], B = corners[(i + 1) % 4];
+    const ua = norm([A[0] - P[0], A[1] - P[1], 0]), ub = norm([B[0] - P[0], B[1] - P[1], 0]);
+    const half = Math.acos(Math.max(-1, Math.min(1, ua[0] * ub[0] + ua[1] * ub[1]))) / 2;
+    const rad = i < 2 ? front : back;
+    const t = rad / Math.tan(half);                 // corner to where the arc meets each edge
+    const bis = norm([ua[0] + ub[0], ua[1] + ub[1], 0]);
+    const c = [P[0] + bis[0] * (rad / Math.sin(half)), P[1] + bis[1] * (rad / Math.sin(half))];
+    const a0 = Math.atan2(P[1] + ua[1] * t - c[1], P[0] + ua[0] * t - c[0]);
+    let a1 = Math.atan2(P[1] + ub[1] * t - c[1], P[0] + ub[0] * t - c[0]);
+    // Take the short way round the arc
+    while (a1 - a0 > Math.PI) a1 -= 2 * Math.PI;
+    while (a0 - a1 > Math.PI) a1 += 2 * Math.PI;
+    for (let k = 0; k <= EDGE_STEPS; k++) {
+      const a = a0 + ((a1 - a0) * k) / EDGE_STEPS;
+      const nx = Math.cos(a), ny = Math.sin(a);
+      out.push({ x: c[0] + nx * rad, y: c[1] + ny * rad, nx, ny });
+    }
+  });
+  return out;
+}
+
 export function sweptBeam(samples, frontRatio = 0.78) {
   const n = samples.length;
-  const corners = []; // per sample: [FL, FR, BR, BL]
+  const positions = [], normals = [], indices = [];
+  const rings = [];
   for (let i = 0; i < n; i++) {
     const prev = samples[Math.max(0, i - 1)].p;
     const next = samples[Math.min(n - 1, i + 1)].p;
@@ -114,35 +148,36 @@ export function sweptBeam(samples, frontRatio = 0.78) {
     const L = norm(cross(T, [0, 0, 1]));
     const N = norm(cross(L, T));
     const { p, w, d } = samples[i];
-    const back = sub(p, scale(N, d));
-    corners.push([
-      add(p, scale(L, (w * frontRatio) / 2)),
-      sub(p, scale(L, (w * frontRatio) / 2)),
-      sub(back, scale(L, w / 2)),
-      add(back, scale(L, w / 2)),
-    ]);
+    rings.push({ T, sec: roundedSection(w, d, frontRatio), L, N, p });
   }
-  const positions = [], indices = [];
-  // Four long faces, each with its own vertices (sharp edges between faces).
-  for (let side = 0; side < 4; side++) {
-    const c0 = side, c1 = (side + 1) % 4;
-    const base = positions.length / 3;
-    for (let i = 0; i < n; i++) {
-      positions.push(...corners[i][c0], ...corners[i][c1]);
-    }
-    for (let i = 0; i < n - 1; i++) {
-      const a = base + i * 2, b = a + 1, c = a + 2, d = a + 3;
-      indices.push(a, b, d, a, d, c);
+  const m = rings[0].sec.length;
+  // Sides: one shared ring of vertices per sample
+  for (const { sec, L, N, p } of rings) {
+    for (const v of sec) {
+      positions.push(...add(p, add(scale(L, v.x), scale(N, v.y))));
+      normals.push(...norm(add(scale(L, v.nx), scale(N, v.ny))));
     }
   }
-  // End caps
-  for (const i of [0, n - 1]) {
-    const base = positions.length / 3;
-    for (const k of [0, 1, 2, 3]) positions.push(...corners[i][k]);
-    if (i === 0) indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
-    else indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < m; j++) {
+      const a = i * m + j, b = i * m + ((j + 1) % m), c = a + m, e = b + m;
+      indices.push(a, e, b, a, c, e);
+    }
   }
-  return { positions, indices };
+  // End caps (buried in the hub and the rim, but closed all the same)
+  for (const [i, sign] of [[0, -1], [n - 1, 1]]) {
+    const { T } = rings[i];
+    const base = positions.length / 3;
+    for (let j = 0; j < m; j++) {
+      positions.push(positions[(i * m + j) * 3], positions[(i * m + j) * 3 + 1], positions[(i * m + j) * 3 + 2]);
+      normals.push(...scale(T, sign));
+    }
+    for (let j = 1; j < m - 1; j++) {
+      if (sign > 0) indices.push(base, base + j + 1, base + j);
+      else indices.push(base, base + j, base + j + 1);
+    }
+  }
+  return { positions, normals, indices };
 }
 
 // ---------- Wheel profiles ----------
@@ -180,6 +215,29 @@ export function ringProfile(ax, construction) {
   const back = zc - dims.ringT;
   const outer = construction === '3pc' ? R + 1.5 : rIn - 0.4;
   return [[inner, back], [outer, back], [outer, zc], [inner + 4, zc], [inner, zc - 4]];
+}
+
+// Tyre: an illustrative low-profile tyre on the bead seats. The sidewall is
+// about 35% of the section width, so it reads like a typical performance tyre.
+export function tyreSize(ax) {
+  const { R, h, W, dims } = ax;
+  const sidewall = Math.min(130, Math.max(70, 0.35 * (W + 20)));
+  return { outerR: R + sidewall, halfW: h + dims.fT + 8 };
+}
+
+export function tyreProfile(ax) {
+  const { R, h, dims } = ax;
+  const { F, fT } = dims;
+  const { outerR: top, halfW } = tyreSize(ax);
+  const tread = halfW - 16;
+  // Outer half, from the tread centre round the shoulder, down the sidewall,
+  // over the rim flange and in to the bead seat
+  const half = [
+    [top, 0], [top, tread - 10], [top - 3, tread], [top - 12, halfW - 3], [top - 28, halfW],
+    [R + F + 16, halfW - 1], [R + F + 5, h + fT + 2], [R + F + 1.5, h + fT - 2],
+    [R + F + 1.5, h - 4], [R + 0.5, h - 4],
+  ];
+  return [...half, ...half.slice().reverse().map(([r, z]) => [r, -z])];
 }
 
 // Mounting pad around the hub bore.

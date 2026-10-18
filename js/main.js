@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 import {
@@ -8,7 +9,7 @@ import {
   BARREL_FINISHES, BOLT_PATTERNS, DIAMETERS, WIDTHS, OFFSET_RANGE, HARDWARE_COUNT, DEFAULT_STATE,
 } from './config.js';
 import { computeAxle, compareToReference, mmToIn } from './fitment.js';
-import { spokeLayout } from './geom.js';
+import { spokeLayout, tyreSize } from './geom.js';
 import { buildWheel, disposeWheel, makeCapTexture } from './wheel.js';
 import { initCarPhoto } from './carphoto.js';
 
@@ -67,8 +68,8 @@ try {
   throw err;
 }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMapping = THREE.NeutralToneMapping; // keeps finish colours true
+renderer.toneMappingExposure = 1.0;
 renderer.localClippingEnabled = true;
 viewport.appendChild(renderer.domElement);
 
@@ -82,10 +83,25 @@ const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-const key = new THREE.DirectionalLight(0xffffff, 1.3);
+// Reflections are most of what makes metal look real, so swap the built-in
+// room for a photographed studio (Poly Haven, CC0) once it has loaded.
+// If it can't load, the built-in room stays.
+let envVersion = 0;
+new RGBELoader().load('./assets/studio_small_09_1k.hdr', (hdr) => {
+  hdr.mapping = THREE.EquirectangularReflectionMapping;
+  const old = scene.environment;
+  scene.environment = pmrem.fromEquirectangular(hdr).texture;
+  hdr.dispose();
+  old.dispose();
+  envVersion++;
+});
+scene.environmentIntensity = 1.5;
+scene.environmentRotation.y = Math.PI * 0.5; // softboxes where they flatter the face and lip
+
+const key = new THREE.DirectionalLight(0xffffff, 0.8);
 key.position.set(700, 1100, 1300);
 scene.add(key);
-const rim = new THREE.DirectionalLight(0xdfe6ff, 0.6);
+const rim = new THREE.DirectionalLight(0xdfe6ff, 0.4);
 rim.position.set(-1200, 300, -600);
 scene.add(rim);
 
@@ -128,6 +144,9 @@ const mats = {
   hardware: physical(),
   lug: new THREE.MeshStandardMaterial({ color: 0x0b0c0d, roughness: 0.7, metalness: 0.2, side: THREE.DoubleSide }),
   cap: new THREE.MeshPhysicalMaterial({ roughness: 0.35, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05 }),
+  tyre: new THREE.MeshPhysicalMaterial({
+    color: 0x141517, roughness: 0.9, metalness: 0, sheen: 0.15, sheenRoughness: 0.7, sheenColor: 0x5a5d62, side: THREE.DoubleSide,
+  }),
 };
 
 function applyFinish(mat, f, customHex) {
@@ -193,6 +212,7 @@ function setDatumVisible(on) {
 let wheel = null;
 let currentAx = null;
 let explode = 0;
+let tyreOn = true;
 
 function rebuild() {
   const axle = shownAxle();
@@ -222,19 +242,26 @@ function applyExplode() {
       if (o.isCSS2DObject) o.element.style.opacity = String(Math.min(1, Math.max(0, (explode - 0.3) / 0.3)));
     });
   }
+  // The tyre fades out as the construction view opens
+  const fade = tyreOn ? Math.min(1, Math.max(0, 1 - explode / 0.25)) : 0;
+  wheel.parts.tyre.visible = fade > 0;
+  if (mats.tyre.transparent !== fade < 1) { mats.tyre.transparent = fade < 1; mats.tyre.needsUpdate = true; }
+  mats.tyre.opacity = fade;
+
   const ax = currentAx;
+  const ground = tyreOn ? tyreSize(ax).outerR : ax.R + ax.dims.F;
   const spread = Math.max(...Object.values(wheel.parts).map((g) => g.userData.explode)) -
     Math.min(...Object.values(wheel.parts).map((g) => g.userData.explode));
-  shadow.position.y = -(ax.R + ax.dims.F + 4);
+  shadow.position.y = -(ground + 4);
   shadow.position.z = 0;
-  shadow.scale.set((ax.R + ax.dims.F) * 1.9, 1, ax.W * 2.6 + spread * e * 1.2);
+  shadow.scale.set(ground * 1.9, 1, ax.W * 2.6 + spread * e * 1.2);
 }
 
 // ---------------------------------------------------------------- camera views
 
 function viewPosition(view) {
   const ax = currentAx;
-  const d = (ax.R + ax.dims.F) * 5.6;
+  const d = tyreSize(ax).outerR * 6.0;
   switch (view) {
     case 'face': return new THREE.Vector3(0, 0, d);
     case 'profile': return new THREE.Vector3(d * 1.12, d * 0.04, 1);
@@ -403,6 +430,11 @@ function buildPanel() {
     setDatumVisible(sectionOn);
     applyMaterials();
     if (sectionOn) goTo('cut');
+  });
+  $('tyreToggle').addEventListener('click', () => {
+    tyreOn = !tyreOn;
+    $('tyreToggle').setAttribute('aria-pressed', String(tyreOn));
+    applyExplode();
   });
   $('spin').addEventListener('click', () => {
     controls.autoRotate = !controls.autoRotate;
@@ -625,7 +657,7 @@ function renderWheelImage(axle, yaw, px) {
   cam.position.set(Math.sin(yaw) * 3000, 0, front.z + Math.cos(yaw) * 3000);
   cam.lookAt(front);
 
-  // Show only the assembled wheel, without cut-away, datums or floor shadow
+  // Show only the assembled wheel, without tyre (the photo has one), cut-away, datums or floor shadow
   const wasSection = sectionOn;
   const size = renderer.getSize(new THREE.Vector2());
   const ratio = renderer.getPixelRatio();
@@ -635,6 +667,7 @@ function renderWheelImage(axle, yaw, px) {
   datum.visible = false;
   if (temp) { wheel.root.visible = false; scene.add(temp.root); }
   for (const g of Object.values(wheel.parts)) g.position.z = 0;
+  for (const w of [wheel, temp]) if (w) w.parts.tyre.visible = false;
 
   renderer.setPixelRatio(1);
   renderer.setSize(px, px, false);
@@ -659,7 +692,7 @@ const carPhoto = initCarPhoto({
   wheels: () => (state.staggered
     ? [{ axle: 'front', label: 'Front' }, { axle: 'rear', label: 'Rear' }]
     : [{ axle: 'front', label: 'Wheel' }, { axle: 'front', label: 'Wheel' }]),
-  version: () => JSON.stringify(state),
+  version: () => JSON.stringify(state) + envVersion,
   toast,
 });
 

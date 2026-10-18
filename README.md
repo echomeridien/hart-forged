@@ -36,6 +36,10 @@ Run the tests with `node tests/geometry.test.mjs` and `node tests/assets.test.mj
 
 Run `node tools/stamp-assets.mjs`. It puts a hash of each file's contents into the links in `index.html` (`styles.css?v=...`, and the import map for the JS modules), so visitors' browsers load the new files instead of mixing them with old cached copies. `tests/assets.test.mjs` fails if this step was missed.
 
+## Lighting
+
+Reflections come from `assets/studio_small_09_1k.hdr`, a studio HDRI by Sergej Majboroda from [Poly Haven](https://polyhaven.com/a/studio_small_09) (CC0). If you replace it, give the new file a new name: it's loaded from JavaScript, so `tools/stamp-assets.mjs` doesn't version it.
+
 ## Accuracy
 
 Fitment figures come from a simplified wheel model and are indicative only. Brake clearance needs real caliper data per vehicle; final fitment is confirmed by Racing Hart Concepts before any order.

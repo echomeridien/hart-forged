@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import {
   lathe, sweptBeam, barrelProfile, ringProfile, hubProfile, clipProfileZ,
-  spokeLayout, beamSamples,
+  spokeLayout, beamSamples, tyreProfile,
 } from './geom.js';
 import { HARDWARE_COUNT } from './config.js';
 
@@ -16,17 +16,18 @@ function latheGeometry(profile, segments = 160) {
 }
 
 function spokesGeometry(ax, design) {
-  const positions = [], indices = [];
+  const positions = [], normals = [], indices = [];
   for (const b of spokeLayout(design, ax)) {
     const g = sweptBeam(beamSamples(ax, b));
     const base = positions.length / 3;
     positions.push(...g.positions);
+    normals.push(...g.normals);
     for (const i of g.indices) indices.push(i + base);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geo.setIndex(indices);
-  geo.computeVertexNormals();
   return geo;
 }
 
@@ -119,6 +120,9 @@ export function buildWheel(state, ax, mats, bolt) {
     add('hardware', bolts);
   }
 
+  // ---- Tyre (illustrative; main.js fades it out in the construction view) ----
+  add('tyre', new THREE.Mesh(latheGeometry(tyreProfile(ax), 192), mats.tyre));
+
   // ---- Centre cap ----
   const capR = ax.boreR + 9;
   const capSide = new THREE.Mesh(new THREE.CylinderGeometry(capR, capR, 7, 64, 1, true).rotateX(Math.PI / 2), mats.face);
@@ -144,6 +148,7 @@ export function buildWheel(state, ax, mats, bolt) {
   };
   const anchorY = { centre: top - 70, hardware: ax.rIn + 10, cap: ax.boreR + 70 };
   for (const name of Object.keys(parts)) {
+    if (name === 'tyre') continue;
     labels.push({ part: name, text: names[name], anchor: new THREE.Vector3(0, anchorY[name] ?? top, anchorZ[name]) });
   }
 
