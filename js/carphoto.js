@@ -17,6 +17,8 @@ export function initCarPhoto({ renderWheelImage, wheels, version, toast }) {
   let rings = [];          // { x, y, h, aspect }: centre and height in canvas pixels, width / height
   let swapped = false;     // ring 0 shows the rear wheel instead of the front
   let showOriginal = false;
+  let showControls = true; // rings and handles; hidden to see the result unobstructed
+  const hintText = $('carHint').textContent;
   let queued = false;
   const cache = new Map(); // rendered wheels, keyed by axle, angle and size
   let cacheVersion = '';
@@ -54,6 +56,7 @@ export function initCarPhoto({ renderWheelImage, wheels, version, toast }) {
         { x: canvas.width * 0.24, y: canvas.height * 0.66, h, aspect: 0.92 },
         { x: canvas.width * 0.76, y: canvas.height * 0.66, h, aspect: 0.92 },
       ];
+      setControls(true);
       $('carDrop').hidden = true;
       $('carStage').hidden = false;
       $('carFoot').hidden = false;
@@ -101,6 +104,15 @@ export function initCarPhoto({ renderWheelImage, wheels, version, toast }) {
   }
 
   function update() { layout(); draw(); }
+
+  function setControls(on) {
+    showControls = on;
+    $('carControls').textContent = on ? 'Hide controls' : 'Show controls';
+    $('carHint').textContent = on ? hintText : 'Controls hidden. Select Show controls to move or resize the wheels again.';
+    syncRings();
+  }
+
+  function syncRings() { ringsEl.hidden = showOriginal || !showControls; }
 
   ringsEl.addEventListener('pointerdown', (e) => {
     const el = e.target.closest('.car-ring'); if (!el) return;
@@ -227,11 +239,12 @@ export function initCarPhoto({ renderWheelImage, wheels, version, toast }) {
   $('carFile').addEventListener('change', (e) => { load(e.target.files[0]); e.target.value = ''; });
   $('carChange').addEventListener('click', () => $('carFile').click());
   $('carSave').addEventListener('click', save);
+  $('carControls').addEventListener('click', () => setControls(!showControls));
   $('carSwap').addEventListener('click', () => { swapped = !swapped; buildRings(); update(); });
   $('carOriginal').addEventListener('click', () => {
     showOriginal = !showOriginal;
     $('carOriginal').setAttribute('aria-pressed', String(showOriginal));
-    ringsEl.hidden = showOriginal;
+    syncRings();
     draw();
   });
 
